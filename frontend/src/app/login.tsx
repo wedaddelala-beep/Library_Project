@@ -381,27 +381,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 50,
     paddingBottom: 20,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
   },
   desktopWrapperAr: {
     flexDirection: 'row',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     gap: 40,
   },
   desktopWrapperEn: {
     flexDirection: 'row-reverse',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     gap: 40,
   },
   mobileWrapper: {
     flexDirection: 'column-reverse',
-    justify: 'center',
+    justifyContent: 'center',
     gap: 25,
   },
   leftSection: {
     flex: 1,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
   },
   imageBackdrop: {
     backgroundColor: 'rgba(255, 255, 255, 0.45)',
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    justify: 'space-between',
+    justifyContent: 'space-between',
     marginTop: 10,
     marginBottom: 15,
   },
