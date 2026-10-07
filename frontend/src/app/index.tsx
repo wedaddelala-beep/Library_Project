@@ -1,179 +1,205 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, ScrollView, TouchableOpacity, SafeAreaView, useWindowDimensions, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { StyleSheet, Text, View, Image, TouchableOpacity, TextInput, SafeAreaView, useWindowDimensions, Platform, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function LandingScreen() {
+// 🌐 رابط الخادم المحلي للاتصال المباشر من الهاتف أو المتصفح
+const API_BASE_URL = 'http://172.20.10.3:5000';
+
+export default function App() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const router = useRouter();
 
+  // حالة اللغة والمدخلات
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  
+  // حالات التحميل والأخطاء
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // التعديل هنا: الانتقال إلى صفحة تسجيل الدخول الجديدة
-  const goToLogin = () => {
-    router.push('/login');
+  // نصوص الواجهة باللغتين
+  const t = {
+    welcomeAr: lang === 'ar' ? 'مرحباً بكم في موقع مكتبة العلوم 📚✨' : 'Welcome to Science Library System 📚✨',
+    welcomeEn: lang === 'ar' ? 'كلية العلوم - جامعة الزنتان' : 'Faculty of Science - Zentan University',
+    loginTab: lang === 'ar' ? 'تسجيل الدخول' : 'Sign In',
+    userLabel: lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address',
+    userPlaceholder: lang === 'ar' ? 'أدخل بريدك الإلكتروني' : 'Enter your email',
+    passLabel: lang === 'ar' ? 'كلمة المرور' : 'Password',
+    passPlaceholder: '••••••••',
+    loginBtn: lang === 'ar' ? 'دخول' : 'Login',
+    forgotPass: lang === 'ar' ? 'هل نسيت كلمة المرور؟' : 'Forgot Password?',
+    libraryTitle: lang === 'ar' ? 'مكتبة كلية العلوم' : 'Faculty of Science Library',
+    librarySubTitle: 'ZENTAN UNIVERSITY FACULTY OF SCIENCE LIBRARY',
+  };
+
+  // دالة تسجيل الدخول
+  const handleLogin = async () => {
+    setErrorMessage('');
+    
+    if (!username.trim() || !password.trim()) {
+      setErrorMessage(lang === 'ar' ? 'الرجاء إدخال البريد وكلمة المرور' : 'Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: username.trim(), password: password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+
+        if (data.user.role === 'admin') {
+          router.replace('/admin');
+        } else {
+          router.replace('/home');
+        }
+      } else {
+        setErrorMessage(data.error || (lang === 'ar' ? 'بيانات الدخول غير صحيحة' : 'Invalid login credentials'));
+      }
+    } catch (error) {
+      setErrorMessage(lang === 'ar' ? 'تعذر الاتصال بالخادم' : 'Server connection failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
 
-      {/* إضاءات خفيفة متدرجة خلف الزجاج */}
+      {/* خلفية جمالية */}
       <View style={styles.bgGlowTop} />
-      <View style={styles.bgGlowCenter} />
       <View style={styles.bgGlowBottom} />
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        
-        {/* 1. الترويسة الزجاجية العلوية Navbar */}
-        <View style={[styles.glassNavbar, lang === 'en' && styles.navbarEn]}>
-          <View style={styles.navBrand}>
-            <Image 
-              source={require('../../assets/images/مكتبة .png')} 
-              style={styles.brandLogo} 
-              resizeMode="contain" 
-            />
-            <View style={styles.brandTextGroup}>
-              <Text style={styles.brandTitleText}>
-                {lang === 'ar' ? 'مكتبة كلية العلوم' : 'Faculty of Science Library'}
-              </Text>
-              <Text style={styles.brandSubTitleText}>ZENTAN UNIVERSITY</Text>
-            </View>
-          </View>
-
-          <View style={styles.navActions}>
-            <TouchableOpacity 
-              style={styles.glassLangBtn} 
-              onPress={() => setLang(lang === 'ar' ? 'en' : 'ar')}
-            >
-              <Text style={styles.langBtnText}>🌐 {lang === 'ar' ? 'English' : 'عربي'}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.glassLoginNavBtn} onPress={goToLogin}>
-              <Text style={styles.loginNavBtnText}>
-                {lang === 'ar' ? 'تسجيل الدخول 🔑' : 'Sign In 🔑'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+      {/* 1. الترويسة العلوية + زر تحويل اللغة */}
+      <View style={[styles.topHeader, lang === 'en' && styles.topHeaderEn]}>
+        <View style={[styles.welcomeBox, lang === 'en' && { alignItems: 'flex-start' }]}>
+          <Text style={styles.welcomeTextAr}>{t.welcomeAr}</Text>
+          <Text style={styles.welcomeTextEn}>{t.welcomeEn}</Text>
         </View>
 
-        {/* 2. قسم البطل (Hero Section) المعرض التفاعلي */}
-        <View style={styles.glassHeroCard}>
-          <Text style={styles.heroBadge}>
-            {lang === 'ar' ? '✨ البوابة الرقمية والمعرفية' : '✨ Digital & Knowledge Hub'}
-          </Text>
-          <Text style={styles.heroTitle}>
-            {lang === 'ar' ? 'صرح العلوم والبحث العلمي' : 'Beacon of Science & Research'}
-          </Text>
-          <Text style={styles.heroSubTitle}>
-            {lang === 'ar' 
-              ? 'بيئة أكاديمية متكاملة تهدف لدعم الطلاب والباحثين بجمع المراجع والمصادر الرقمية الحديثة.' 
-              : 'An integrated academic environment supporting students and researchers with modern digital resources.'}
-          </Text>
-
-          {/* المعرض الأفقي الأنيق */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageGallery}>
-            <View style={styles.galleryCard}>
-              <Image source={require('../../assets/images/مكتبة .png')} style={styles.galleryImage} resizeMode="cover" />
-            </View>
-            <View style={styles.galleryCard}>
-              <Image source={require('../../assets/images/FB_IMG_1776379564764.jpg')} style={styles.galleryImage} resizeMode="cover" />
-            </View>
-            <View style={styles.galleryCard}>
-              <Image source={require('../../assets/images/Screenshot_20260417-004535_Facebook.jpg')} style={styles.galleryImage} resizeMode="cover" />
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* 3. بطاقة نبذة التأسيس الزجاجية */}
-        <View style={styles.glassSectionCard}>
-          <View style={[styles.sectionHeaderRow, lang === 'en' && styles.rowEn]}>
-            <View style={styles.iconCircle}><Text style={styles.iconText}>📜</Text></View>
-            <Text style={styles.sectionTitle}>
-              {lang === 'ar' ? 'تأسيس الكلية والمكتبة' : 'About Foundation'}
-            </Text>
-          </View>
-          
-          <Text style={[styles.glassParagraph, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
-            {lang === 'ar' 
-              ? 'تأسست كلية العلوم بالزنتان في 18 سبتمبر 1991، وغالباً ما نشأت المكتبة الخاصة بها بالتزامن مع تأسيس الكلية لتلبية احتياجات الطلاب والباحثين في التخصصات العلمية المختلفة ضمن جامعة الزنتان (جامعة الجبل الغربي سابقاً).'
-              : 'The Faculty of Science in Zentan was established on September 18, 1991. Its library was created alongside the college to meet the needs of students and researchers within Zentan University.'}
-          </Text>
-
-          {/* البطاقات المصغرة للحقائق الأساسية */}
-          <View style={styles.gridInfoCards}>
-            <View style={styles.glassMiniCard}>
-              <Text style={styles.miniCardIcon}>📅</Text>
-              <Text style={styles.miniCardTitle}>{lang === 'ar' ? '18 سبتمبر 1991' : 'Sep 18, 1991'}</Text>
-              <Text style={styles.miniCardSub}>{lang === 'ar' ? 'تاريخ التأسيس' : 'Establishment'}</Text>
-            </View>
-
-            <View style={styles.glassMiniCard}>
-              <Text style={styles.miniCardIcon}>🏛️</Text>
-              <Text style={styles.miniCardTitle}>{lang === 'ar' ? 'النواة الأساسية' : 'Core Nucleus'}</Text>
-              <Text style={styles.miniCardSub}>{lang === 'ar' ? 'انطلاقة الجامعة بالزنتان' : 'University Foundation'}</Text>
-            </View>
-
-            <View style={styles.glassMiniCard}>
-              <Text style={styles.miniCardIcon}>📚</Text>
-              <Text style={styles.miniCardTitle}>{lang === 'ar' ? 'مصادر متنوعة' : 'Rich Resources'}</Text>
-              <Text style={styles.miniCardSub}>{lang === 'ar' ? 'كتب ودوريات علمية' : 'Books & Periodicals'}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 4. بطاقة الأنشطة والفعاليات */}
-        <View style={styles.glassSectionCard}>
-          <View style={[styles.sectionHeaderRow, lang === 'en' && styles.rowEn]}>
-            <View style={styles.iconCircle}><Text style={styles.iconText}>🎨</Text></View>
-            <Text style={styles.sectionTitle}>
-              {lang === 'ar' ? 'النشاطات والفعاليات' : 'Activities & Events'}
-            </Text>
-          </View>
-
-          <View style={[styles.activityContentRow, isDesktop ? (lang === 'ar' ? styles.desktopRowAr : styles.desktopRowEn) : styles.mobileRow]}>
-            <View style={styles.activityTextContent}>
-              <View style={styles.activityItem}>
-                <Text style={[styles.actItemTitle, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
-                  {lang === 'ar' ? '• المعارض العلمية والثقافية' : '• Scientific & Cultural Fairs'}
-                </Text>
-                <Text style={[styles.actItemSub, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
-                  {lang === 'ar' ? 'تنظيم المعارض السنوية وورش العمل المتخصصة.' : 'Annual book fairs and scientific workshops.'}
-                </Text>
-              </View>
-
-              <View style={styles.activityItem}>
-                <Text style={[styles.actItemTitle, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
-                  {lang === 'ar' ? '• الملتقيات والمبادرات الطلابية' : '• Student Initiatives'}
-                </Text>
-                <Text style={[styles.actItemSub, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
-                  {lang === 'ar' ? 'دعم الأنشطة والمشاريع الأكاديمية المتميزة.' : 'Supporting academic initiatives and outstanding projects.'}
-                </Text>
-              </View>
-            </View>
-
-            {/* صور جانبية بإطار زجاجي */}
-            <View style={styles.sideImagesStack}>
-              <View style={styles.sideGlassImageWrap}>
-                <Image source={require('../../assets/images/Screenshot_20260417-004535_Facebook.jpg')} style={styles.sideImg} resizeMode="cover" />
-              </View>
-              <View style={styles.sideGlassImageWrap}>
-                <Image source={require('../../assets/images/FB_IMG_1776379564764.jpg')} style={styles.sideImg} resizeMode="cover" />
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* 5. زر الدعوة للانتقال لصفحة التسجيل Footer Call to Action */}
-        <View style={styles.footerActionBox}>
-          <TouchableOpacity style={styles.glassCallToActionButton} onPress={goToLogin}>
-            <Text style={styles.callToActionText}>
-              {lang === 'ar' ? 'الدخول إلى المنظومة الإلكترونية 🚪' : 'Enter Library Portal 🚪'}
-            </Text>
+        <View style={styles.headerRightGroup}>
+          <TouchableOpacity 
+            style={styles.langToggleBtn} 
+            onPress={() => setLang(lang === 'ar' ? 'en' : 'ar')}
+          >
+            <Text style={styles.langToggleText}>🌐 {lang === 'ar' ? 'English' : 'عربي'}</Text>
           </TouchableOpacity>
+
+          <View style={styles.headerLogos}>
+            <Image 
+              source={require('../../assets/images/FB_IMG_1776379564764.jpg')}
+              style={styles.circleLogo} 
+              resizeMode="cover"
+            />
+            <Image 
+              source={require('../../assets/images/Screenshot_20260417-004535_Facebook.jpg')} 
+              style={styles.circleLogo} 
+              resizeMode="cover"
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* 2. جسم الصفحة */}
+      <View style={[
+        styles.mainWrapper, 
+        isDesktop ? (lang === 'ar' ? styles.desktopWrapperAr : styles.desktopWrapperEn) : styles.mobileWrapper
+      ]}>
+        
+        {/* نموذج الدخول */}
+        <View style={styles.glassFormCard}>
+
+          {/* عنوان تسجيل الدخول */}
+          <View style={styles.titleHeader}>
+            <Text style={styles.titleHeaderText}>{t.loginTab}</Text>
+          </View>
+
+          {/* رسالة الخطأ إن وجدت */}
+          {errorMessage ? (
+            <Text style={[styles.errorText, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
+              {errorMessage}
+            </Text>
+          ) : null}
+
+          {/* حقل البريد الإلكتروني */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
+              {t.userLabel}
+            </Text>
+            <TextInput 
+              style={[styles.glassInput, { textAlign: lang === 'ar' ? 'right' : 'left' }]} 
+              value={username}
+              onChangeText={setUsername}
+              placeholder={t.userPlaceholder}
+              placeholderTextColor="#B0A495"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* حقل كلمة المرور */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
+              {t.passLabel}
+            </Text>
+            <TextInput 
+              style={[styles.glassInput, { textAlign: lang === 'ar' ? 'right' : 'left' }]} 
+              secureTextEntry 
+              value={password}
+              onChangeText={setPassword}
+              placeholder={t.passPlaceholder}
+              placeholderTextColor="#B0A495"
+            />
+          </View>
+
+          {/* سطر الإجراءات */}
+          <View style={[styles.actionRow, lang === 'en' && styles.actionRowEn]}>
+            <TouchableOpacity 
+              style={styles.glassLoginBtn} 
+              onPress={handleLogin} 
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.loginBtnText}>
+                  {t.loginBtn}
+                </Text>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.forgotLink}>
+              <Text style={styles.forgotText}>{t.forgotPass}</Text>
+            </TouchableOpacity>
+          </View>
+
         </View>
 
-      </ScrollView>
+        {/* قسم الشعار والعنوان الجانبي */}
+        <View style={styles.leftSection}>
+          <View style={styles.imageBackdrop}>
+            <Image 
+              source={require('../../assets/images/مكتبة .png')}
+              style={styles.featherImg} 
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.libraryTitle}>{t.libraryTitle}</Text>
+          <Text style={styles.librarySubTitle}>{t.librarySubTitle}</Text>
+        </View>
+
+      </View>
+
     </SafeAreaView>
   );
 }
@@ -185,330 +211,225 @@ const fontFamilyStyle = Platform.select({
 });
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F4F0E8',
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F7F4EE',
+    position: 'relative',
+    overflow: 'hidden',
   },
   bgGlowTop: {
     position: 'absolute',
-    top: -120,
+    top: -100,
     right: -100,
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: 'rgba(212, 175, 55, 0.16)',
-  },
-  bgGlowCenter: {
-    position: 'absolute',
-    top: '40%',
-    left: -150,
-    width: 450,
-    height: 450,
-    borderRadius: 225,
-    backgroundColor: 'rgba(184, 144, 71, 0.12)',
+    width: 350,
+    height: 350,
+    borderRadius: 175,
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
   },
   bgGlowBottom: {
     position: 'absolute',
-    bottom: -100,
-    right: -100,
-    width: 380,
-    height: 380,
-    borderRadius: 190,
-    backgroundColor: 'rgba(212, 175, 55, 0.14)',
+    bottom: -120,
+    left: -120,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(184, 144, 71, 0.1)',
   },
-  scrollContainer: {
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    gap: 25,
-  },
-  glassNavbar: {
+  topHeader: {
     width: '100%',
-    maxWidth: 1000,
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    flexDirection: 'row-reverse',
-    justify: 'space-between',
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#8C6D46',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
+    paddingHorizontal: 50,
+    paddingTop: 30,
+    paddingBottom: 10,
+    zIndex: 10,
   },
-  navbarEn: {
-    flexDirection: 'row',
-  },
-  navBrand: {
+  topHeaderEn: {
     flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 12,
   },
-  brandLogo: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  welcomeBox: {
+    alignItems: 'flex-end',
   },
-  brandTextGroup: {
-    alignItems: 'flex-start',
-  },
-  brandTitleText: {
-    fontSize: 16,
+  welcomeTextAr: {
+    fontSize: 24,
     fontWeight: '900',
-    color: '#6E5230',
+    color: '#725232',
     fontFamily: fontFamilyStyle,
   },
-  brandSubTitleText: {
-    fontSize: 8,
-    fontWeight: '700',
+  welcomeTextEn: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#A08564',
     letterSpacing: 1.2,
+    marginTop: 2,
+    textTransform: 'uppercase',
   },
-  navActions: {
+  headerRightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 15,
   },
-  glassLangBtn: {
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+  langToggleBtn: {
+    backgroundColor: 'rgba(212, 175, 55, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.4)',
-    paddingVertical: 7,
+    borderColor: '#D4AF37',
+    paddingVertical: 6,
     paddingHorizontal: 14,
-    borderRadius: 16,
+    borderRadius: 20,
   },
-  langBtnText: {
-    color: '#6E5230',
+  langToggleText: {
+    color: '#725232',
     fontWeight: '800',
     fontSize: 12,
     fontFamily: fontFamilyStyle,
   },
-  glassLoginNavBtn: {
-    backgroundColor: '#B89047',
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 14,
+  headerLogos: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  loginNavBtnText: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 13,
+  circleLogo: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
+  },
+  mainWrapper: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: 50,
+    paddingBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  desktopWrapperAr: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 40,
+  },
+  desktopWrapperEn: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    gap: 40,
+  },
+  mobileWrapper: {
+    flexDirection: 'column-reverse',
+    justifyContent: 'center',
+    gap: 25,
+  },
+  leftSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageBackdrop: {
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    borderRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.25)',
+  },
+  featherImg: {
+    width: 310,
+    height: 210,
+  },
+  libraryTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#8C6D46',
+    marginTop: 15,
     fontFamily: fontFamilyStyle,
   },
-  glassHeroCard: {
+  librarySubTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B09673',
+    letterSpacing: 1.2,
+    marginTop: 4,
+  },
+  glassFormCard: {
     width: '100%',
-    maxWidth: 1000,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    borderRadius: 28,
+    maxWidth: 440,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 24,
+    padding: 35,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.85)',
-    padding: 30,
-    alignItems: 'center',
-    shadowColor: '#8C6D46',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
   },
-  heroBadge: {
-    backgroundColor: 'rgba(212, 175, 55, 0.15)',
-    color: '#725232',
-    paddingVertical: 5,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    fontSize: 12,
+  titleHeader: {
+    backgroundColor: '#B89047',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  titleHeaderText: {
+    fontSize: 16,
     fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: fontFamilyStyle,
+  },
+  errorText: {
+    color: '#D9534F',
+    fontSize: 13,
+    fontWeight: 'bold',
     marginBottom: 12,
     fontFamily: fontFamilyStyle,
   },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#5C4326',
-    textAlign: 'center',
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#8C6D46',
     marginBottom: 8,
     fontFamily: fontFamilyStyle,
   },
-  heroSubTitle: {
-    fontSize: 14,
-    color: '#7A644C',
-    textAlign: 'center',
-    maxWidth: 600,
-    lineHeight: 22,
-    marginBottom: 25,
-    fontFamily: fontFamilyStyle,
-  },
-  imageGallery: {
-    gap: 16,
-    paddingHorizontal: 5,
-  },
-  galleryCard: {
-    borderRadius: 18,
-    padding: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  glassInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
-  },
-  galleryImage: {
-    width: 270,
-    height: 160,
-    borderRadius: 14,
-  },
-  glassSectionCard: {
-    width: '100%',
-    maxWidth: 1000,
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.85)',
-    padding: 25,
-    shadowColor: '#8C6D46',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 15,
-  },
-  rowEn: {
-    flexDirection: 'row',
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(212, 175, 55, 0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: {
-    fontSize: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#6E5230',
-    fontFamily: fontFamilyStyle,
-  },
-  glassParagraph: {
-    fontSize: 14,
-    lineHeight: 24,
-    color: '#554433',
-    fontWeight: '600',
-    marginBottom: 20,
-    fontFamily: fontFamilyStyle,
-  },
-  gridInfoCards: {
-    flexDirection: 'row-reverse',
-    flexWrap: 'wrap',
-    gap: 12,
-    justifyContent: 'space-between',
-  },
-  glassMiniCard: {
-    flex: 1,
-    minWidth: 180,
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
-    alignItems: 'center',
-  },
-  miniCardIcon: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  miniCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#6E5230',
-    marginBottom: 3,
-    fontFamily: fontFamilyStyle,
-  },
-  miniCardSub: {
-    fontSize: 12,
-    color: '#8C6D46',
-    fontFamily: fontFamilyStyle,
-  },
-  activityContentRow: {
-    gap: 20,
-    marginTop: 10,
-  },
-  desktopRowAr: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-  },
-  desktopRowEn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mobileRow: {
-    flexDirection: 'column',
-  },
-  activityTextContent: {
-    flex: 1,
-    gap: 15,
-  },
-  activityItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(212, 175, 55, 0.35)',
     borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.2)',
-  },
-  actItemTitle: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 15,
-    fontWeight: '800',
-    color: '#6E5230',
-    marginBottom: 4,
+    color: '#4A3B2C',
     fontFamily: fontFamilyStyle,
   },
-  actItemSub: {
-    fontSize: 13,
-    color: '#7A644C',
-    fontFamily: fontFamilyStyle,
-  },
-  sideImagesStack: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  sideGlassImageWrap: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 16,
-    padding: 5,
-    borderWidth: 1.5,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
-  },
-  sideImg: {
-    width: 130,
-    height: 100,
-    borderRadius: 12,
-  },
-  footerActionBox: {
+  actionRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 10,
+    marginBottom: 5,
+  },
+  actionRowEn: {
+    flexDirection: 'row',
+  },
+  glassLoginBtn: {
+    backgroundColor: '#B89047',
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 12,
+    minWidth: 120,
     alignItems: 'center',
   },
-  glassCallToActionButton: {
-    backgroundColor: '#6E5230',
-    paddingVertical: 15,
-    paddingHorizontal: 40,
-    borderRadius: 18,
-    shadowColor: '#6E5230',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-  },
-  callToActionText: {
-    color: '#FFF',
-    fontSize: 16,
+  loginBtnText: {
+    color: '#FFFFFF',
     fontWeight: 'bold',
+    fontSize: 15,
+    fontFamily: fontFamilyStyle,
+  },
+  forgotLink: {
+    paddingVertical: 5,
+  },
+  forgotText: {
+    color: '#B89047',
+    fontSize: 14,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
     fontFamily: fontFamilyStyle,
   },
 });

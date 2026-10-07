@@ -35,6 +35,16 @@ CREATE TABLE IF NOT EXISTS borrowings (
     FOREIGN KEY (book_id) REFERENCES books(id)
 );
 
+-- 5. جدول مشاريع التخرج (تمت الإضافة هنا 🎓)
+CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    department TEXT NOT NULL,
+    students TEXT NOT NULL,
+    supervisor TEXT NOT NULL,
+    year TEXT DEFAULT '2026'
+);
+
 -- ---------------------------------------------------------
 -- إدخال البيانات البيانات الأساسية الأولية (Initial Seed Data)
 -- ---------------------------------------------------------
@@ -52,3 +62,8 @@ WHERE NOT EXISTS (SELECT 1 FROM activities WHERE id = 2);
 INSERT INTO users (name, email, password, role, department)
 SELECT 'وداد عبدالمجيد دلالة', 'wedad@zentan.edu.ly', 'admin123', 'admin', 'قسم الحاسب الآلي'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'wedad@zentan.edu.ly');
+
+-- إضافة مشروع تخرج افتراضي تجريبي
+INSERT INTO projects (title, department, students, supervisor, year)
+SELECT 'مشروع المكتبة الالكترونية لكلية العلوم', 'قسم علم الحاسوب', 'فريق العمل', 'د. احمد', '2026'
+WHERE NOT EXISTS (SELECT 1 FROM projects WHERE id = 1);
