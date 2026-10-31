@@ -1,45 +1,57 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, TextInput, SafeAreaView, useWindowDimensions, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, TextInput, SafeAreaView, useWindowDimensions, Platform, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 🌐 رابط الخادم المحلي للاتصال المباشر من الهاتف أو المتصفح
-const API_BASE_URL = 'http://172.20.10.3:5000';
+// 🌐 رابط الخادم المحلي للاتصال بقاعدة بيانات MySQL عبر Flask
+const API_BASE_URL = 'http://127.0.0.1:5000';
 
 export default function App() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const router = useRouter();
 
-  // حالة اللغة والمدخلات
+  // حالة النمط: 'login' لتسجيل الدخول أو 'register' لإنشاء حساب طالب جديد
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
-  const [username, setUsername] = useState('');
+
+  // حقول المدخلات
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  // حالات التحميل والأخطاء
+  const [name, setName] = useState('');
+
+  // حالات التحميل والأخطاء والنجاح
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // نصوص الواجهة باللغتين
   const t = {
-    welcomeAr: lang === 'ar' ? 'مرحباً بكم في موقع مكتبة العلوم 📚✨' : 'Welcome to Science Library System 📚✨',
-    welcomeEn: lang === 'ar' ? 'كلية العلوم - جامعة الزنتان' : 'Faculty of Science - Zentan University',
+    welcomeAr: lang === 'ar' ? 'مرحباً بكم في نظام إدارة المكتبة الأكاديمية 📚✨' : 'Welcome to Academic Library System 📚✨',
+    welcomeEn: lang === 'ar' ? 'جامعة الزنتان - بوابة النظام الأكاديمي' : 'Zentan University - Academic Portal',
     loginTab: lang === 'ar' ? 'تسجيل الدخول' : 'Sign In',
+    registerTab: lang === 'ar' ? 'إنشاء حساب طالب جديد' : 'New Student Registration',
     userLabel: lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address',
     userPlaceholder: lang === 'ar' ? 'أدخل بريدك الإلكتروني' : 'Enter your email',
     passLabel: lang === 'ar' ? 'كلمة المرور' : 'Password',
     passPlaceholder: '••••••••',
+    nameLabel: lang === 'ar' ? 'اسم الطالب الكامل' : 'Full Name',
+    namePlaceholder: lang === 'ar' ? 'أدخل اسمك الثلاثي' : 'Enter your full name',
     loginBtn: lang === 'ar' ? 'دخول' : 'Login',
+    registerBtn: lang === 'ar' ? 'تسجيل الحساب' : 'Register Account',
+    switchToRegister: lang === 'ar' ? 'ليس لديك حساب؟ سجل الآن كطالب' : "Don't have an account? Register as Student",
+    switchToLogin: lang === 'ar' ? 'لديك حساب بالفعل؟ تسجيل الدخول' : 'Already have an account? Sign In',
     forgotPass: lang === 'ar' ? 'هل نسيت كلمة المرور؟' : 'Forgot Password?',
-    libraryTitle: lang === 'ar' ? 'مكتبة كلية العلوم' : 'Faculty of Science Library',
-    librarySubTitle: 'ZENTAN UNIVERSITY FACULTY OF SCIENCE LIBRARY',
+    libraryTitle: lang === 'ar' ? 'نظام المكتبة الأكاديمية' : 'Academic Library System',
+    librarySubTitle: 'SECURE ENTERPRISE LIBRARY SOLUTION',
   };
 
   // دالة تسجيل الدخول
   const handleLogin = async () => {
     setErrorMessage('');
+    setSuccessMessage('');
     
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       setErrorMessage(lang === 'ar' ? 'الرجاء إدخال البريد وكلمة المرور' : 'Please enter email and password');
       return;
     }
@@ -50,15 +62,16 @@ export default function App() {
       const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username.trim(), password: password }),
+        body: JSON.stringify({ email: email.trim(), password: password }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+        const userRole = data.user.role ? data.user.role.toLowerCase() : '';
 
-        if (data.user.role === 'admin') {
+        if (userRole === 'admin' || userRole === 'librarian') {
           router.replace('/admin');
         } else {
           router.replace('/home');
@@ -67,7 +80,63 @@ export default function App() {
         setErrorMessage(data.error || (lang === 'ar' ? 'بيانات الدخول غير صحيحة' : 'Invalid login credentials'));
       }
     } catch (error) {
-      setErrorMessage(lang === 'ar' ? 'تعذر الاتصال بالخادم' : 'Server connection failed');
+      setErrorMessage(lang === 'ar' ? 'تعذر الاتصال بالخادم، تأكد من تشغيل خادم بايثون' : 'Server connection failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // دالة تسجيل حساب طالب جديد وتوجيهه تلقائياً
+  const handleRegister = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setErrorMessage(lang === 'ar' ? 'الرجاء تعبئة جميع الحقول المطلوبة' : 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password: password,
+          role: 'Student'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccessMessage(lang === 'ar' ? 'تم إنشاء الحساب بنجاح! جاري تسجيل الدخول...' : 'Account created successfully! Signing in...');
+        
+        // تسجيل الدخول التلقائي بعد نجاح إنشاء الحساب
+        const loginResponse = await fetch(`${API_BASE_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), password: password }),
+        });
+        const loginData = await loginResponse.json();
+
+        if (loginResponse.ok) {
+          await AsyncStorage.setItem('userData', JSON.stringify(loginData.user));
+          setTimeout(() => {
+            router.replace('/home');
+          }, 1000);
+        } else {
+          setMode('login');
+          setSuccessMessage(lang === 'ar' ? 'تم التسجيل بنجاح، يرجى تسجيل الدخول' : 'Registered successfully, please sign in');
+        }
+      } else {
+        setErrorMessage(data.error || (lang === 'ar' ? 'فشل إنشاء الحساب' : 'Registration failed'));
+      }
+    } catch (error) {
+      setErrorMessage(lang === 'ar' ? 'تعذر الاتصال بالخادم، تأكد من تشغيل خادم بايثون' : 'Server connection failed');
     } finally {
       setLoading(false);
     }
@@ -76,7 +145,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
 
-      {/* خلفية جمالية */}
+      {/* خلفية جمالية تفاعلية */}
       <View style={styles.bgGlowTop} />
       <View style={styles.bgGlowBottom} />
 
@@ -94,52 +163,59 @@ export default function App() {
           >
             <Text style={styles.langToggleText}>🌐 {lang === 'ar' ? 'English' : 'عربي'}</Text>
           </TouchableOpacity>
-
-          <View style={styles.headerLogos}>
-            <Image 
-              source={require('../../assets/images/FB_IMG_1776379564764.jpg')}
-              style={styles.circleLogo} 
-              resizeMode="cover"
-            />
-            <Image 
-              source={require('../../assets/images/Screenshot_20260417-004535_Facebook.jpg')} 
-              style={styles.circleLogo} 
-              resizeMode="cover"
-            />
-          </View>
         </View>
       </View>
 
-      {/* 2. جسم الصفحة */}
+      {/* 2. جسم الصفحة المتجاوب */}
       <View style={[
         styles.mainWrapper, 
         isDesktop ? (lang === 'ar' ? styles.desktopWrapperAr : styles.desktopWrapperEn) : styles.mobileWrapper
       ]}>
         
-        {/* نموذج الدخول */}
+        {/* نموذج تسجيل الدخول أو إنشاء حساب */}
         <View style={styles.glassFormCard}>
 
-          {/* عنوان تسجيل الدخول */}
           <View style={styles.titleHeader}>
-            <Text style={styles.titleHeaderText}>{t.loginTab}</Text>
+            <Text style={styles.titleHeaderText}>{mode === 'login' ? t.loginTab : t.registerTab}</Text>
           </View>
 
-          {/* رسالة الخطأ إن وجدت */}
           {errorMessage ? (
             <Text style={[styles.errorText, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
               {errorMessage}
             </Text>
           ) : null}
 
-          {/* حقل البريد الإلكتروني */}
+          {successMessage ? (
+            <Text style={[styles.successText, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
+              {successMessage}
+            </Text>
+          ) : null}
+
+          {/* حقل اسم الطالب يظهر فقط في وضع التسجيل */}
+          {mode === 'register' && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
+                {t.nameLabel}
+              </Text>
+              <TextInput 
+                style={[styles.glassInput, { textAlign: lang === 'ar' ? 'right' : 'left' }]} 
+                value={name}
+                onChangeText={setName}
+                placeholder={t.namePlaceholder}
+                placeholderTextColor="#B0A495"
+                autoCapitalize="words"
+              />
+            </View>
+          )}
+
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
               {t.userLabel}
             </Text>
             <TextInput 
               style={[styles.glassInput, { textAlign: lang === 'ar' ? 'right' : 'left' }]} 
-              value={username}
-              onChangeText={setUsername}
+              value={email}
+              onChangeText={setEmail}
               placeholder={t.userPlaceholder}
               placeholderTextColor="#B0A495"
               keyboardType="email-address"
@@ -147,7 +223,6 @@ export default function App() {
             />
           </View>
 
-          {/* حقل كلمة المرور */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { textAlign: lang === 'ar' ? 'right' : 'left' }]}>
               {t.passLabel}
@@ -162,38 +237,62 @@ export default function App() {
             />
           </View>
 
-          {/* سطر الإجراءات */}
-          <View style={[styles.actionRow, lang === 'en' && styles.actionRowEn]}>
+          <View style={styles.actionColumn}>
             <TouchableOpacity 
               style={styles.glassLoginBtn} 
-              onPress={handleLogin} 
+              onPress={mode === 'login' ? handleLogin : handleRegister} 
               disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.loginBtnText}>
-                  {t.loginBtn}
+                  {mode === 'login' ? t.loginBtn : t.registerBtn}
                 </Text>
               )}
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.forgotLink}>
-              <Text style={styles.forgotText}>{t.forgotPass}</Text>
-            </TouchableOpacity>
+            <View style={styles.linksRow}>
+              {mode === 'login' ? (
+                <>
+                  <TouchableOpacity style={styles.forgotLink}>
+                    <Text style={styles.forgotText}>{t.forgotPass}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.switchModeLink}
+                    onPress={() => {
+                      setMode('register');
+                      setErrorMessage('');
+                      setSuccessMessage('');
+                    }}
+                  >
+                    <Text style={styles.switchModeText}>{t.switchToRegister}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.switchModeLink}
+                  onPress={() => {
+                    setMode('login');
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                  }}
+                >
+                  <Text style={styles.switchModeText}>{t.switchToLogin}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
         </View>
 
-        {/* قسم الشعار والعنوان الجانبي */}
+        {/* قسم الشعار المحلي والعناوين الجانبية */}
         <View style={styles.leftSection}>
-          <View style={styles.imageBackdrop}>
-            <Image 
-              source={require('../../assets/images/مكتبة .png')}
-              style={styles.featherImg} 
-              resizeMode="contain"
-            />
-          </View>
+          <Image 
+            source={require('../../assets/images/مكتبة .png')} 
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.libraryTitle}>{t.libraryTitle}</Text>
           <Text style={styles.librarySubTitle}>{t.librarySubTitle}</Text>
         </View>
@@ -252,7 +351,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   welcomeTextAr: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
     color: '#725232',
     fontFamily: fontFamilyStyle,
@@ -284,17 +383,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fontFamilyStyle,
   },
-  headerLogos: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  circleLogo: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
-  },
   mainWrapper: {
     flex: 1,
     width: '100%',
@@ -323,16 +411,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  imageBackdrop: {
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-    borderRadius: 28,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)',
-  },
-  featherImg: {
-    width: 310,
-    height: 210,
+  logoImage: {
+    width: 140,
+    height: 140,
+    marginBottom: 15,
+    borderRadius: 70,
   },
   libraryTitle: {
     fontSize: 26,
@@ -340,6 +423,7 @@ const styles = StyleSheet.create({
     color: '#8C6D46',
     marginTop: 15,
     fontFamily: fontFamilyStyle,
+    textAlign: 'center',
   },
   librarySubTitle: {
     fontSize: 10,
@@ -347,6 +431,7 @@ const styles = StyleSheet.create({
     color: '#B09673',
     letterSpacing: 1.2,
     marginTop: 4,
+    textAlign: 'center',
   },
   glassFormCard: {
     width: '100%',
@@ -377,6 +462,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontFamily: fontFamilyStyle,
   },
+  successText: {
+    color: '#28A745',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    fontFamily: fontFamilyStyle,
+  },
   inputGroup: {
     marginBottom: 16,
   },
@@ -398,22 +490,15 @@ const styles = StyleSheet.create({
     color: '#4A3B2C',
     fontFamily: fontFamilyStyle,
   },
-  actionRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  actionColumn: {
     marginTop: 10,
-    marginBottom: 5,
-  },
-  actionRowEn: {
-    flexDirection: 'row',
+    gap: 12,
   },
   glassLoginBtn: {
     backgroundColor: '#B89047',
-    paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 12,
-    minWidth: 120,
+    width: '100%',
     alignItems: 'center',
   },
   loginBtnText: {
@@ -422,12 +507,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fontFamilyStyle,
   },
+  linksRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 5,
+  },
   forgotLink: {
     paddingVertical: 5,
   },
   forgotText: {
     color: '#B89047',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+    fontFamily: fontFamilyStyle,
+  },
+  switchModeLink: {
+    paddingVertical: 5,
+  },
+  switchModeText: {
+    color: '#725232',
+    fontSize: 13,
     fontWeight: '700',
     textDecorationLine: 'underline',
     fontFamily: fontFamilyStyle,
